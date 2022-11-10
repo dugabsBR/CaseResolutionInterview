@@ -1,0 +1,435 @@
+---
+title: "Resolucao_Caso2"
+author: "Gabriel Oliveira"
+date: "20/06/2021"
+output: beamer_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r Bibliotecas}
+install.packages('readr')
+install.packages('readxl')
+install.packages("dplyr")
+install.packages("tidyverse")
+install.packages("ggplot2")
+install.packages("scales")
+
+library(readr)
+library(readxl)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(scales)
+```
+
+```{r dados}
+Master_of_Clients <- read_csv("C:/Users/Gbrie/Desktop/RStudio - Projetos/DADOS/Master_of_Clients.csv")
+class(Master_of_Clients)
+str(Master_of_Clients)
+
+MasterProduct <- read_delim("C:/Users/Gbrie/Desktop/RStudio - Projetos/DADOS/MasterProduct.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+class(MasterProduct)
+str(MasterProduct)
+
+Transactions <- read_delim("C:/Users/Gbrie/Desktop/RStudio - Projetos/DADOS/Transactions.txt", 
+    "|", escape_double = FALSE, trim_ws = TRUE)
+class(Transactions)
+str(Transactions)
+
+
+```
+
+```{r Clientes}
+#ADEQUAÇÃO DAS INFORMAÇÕES DE Master_of_Clients
+View(Master_of_Clients)
+
+sum(is.na(Master_of_Clients))
+
+Master_of_Clients %>% 
+  group_by(CHANNEL) %>% 
+  summarise(n())
+
+
+```
+
+```{r Produtos}
+#ADEQUAÇÃO DAS INFORMAÇÕES DE MasterProduct
+View(MasterProduct)
+
+sum(is.na(MasterProduct))
+
+MasterProduct$CATEGORY <- ifelse(MasterProduct$CATEGORY == "CHESE", "CHEESE", MasterProduct$CATEGORY)
+
+MasterProduct$CATEGORY <- ifelse(MasterProduct$CATEGORY == "DRESSING", "DRESSINGS", MasterProduct$CATEGORY)
+
+
+```
+
+```{r Transações}
+#ADEQUAÇÃO DAS INFORMAÇÕES DE Transactions
+View(Transactions)
+
+sum(is.na(Transactions))
+
+Transactions$X1 <- NULL
+
+Transactions$X8 <- NULL
+
+Transactions <- Transactions[-1,]
+
+Transactions$MATERIAL <- as.numeric(Transactions$MATERIAL)
+
+#Transactions$PERIOD <- as.Date(Transactions$PERIOD, format =  "%Y%M", tryFormats = "%Y%m")
+
+
+```
+
+```{r Junção de Datasets}
+#################### #################### #################### ####################
+#JUNÇÃO DOS DATASETS "TRANSACTIONS" & "MASTERPRODUCT"
+Transactions_MasterProduct <- Transactions %>%
+  inner_join(MasterProduct, by = c('MATERIAL' = 'MATERIAL'))
+
+str(Transactions_MasterProduct)
+
+Transactions_MasterProduct <- arrange(Transactions_MasterProduct, PERIOD)
+
+
+#################### #################### #################### ####################
+#JUNÇÃO DOS DATASETS "TRANSACTIONS" & "Master_of_Client"
+Transactions_MasterofClient <- Transactions %>%
+  inner_join(Master_of_Clients, by = c('SOLD_TO' = 'SOLD_TO'))
+
+str(Transactions_MasterofClient)
+
+Transactions_MasterProduct <- arrange(Transactions_MasterProduct, PERIOD)
+
+Transactions_MasterProductTeste <- Transactions_MasterProduct
+Transactions_MasterProductTeste <- as.numeric(Transactions_MasterProductTeste$PERIOD)
+
+
+#################### #################### #################### ####################
+#JUNÇÃO DOS DATASETS "TRANSACTIONS" & "Master_of_Client" & "MasterProduct"
+AllDates <- Transactions_MasterofClient %>%
+  inner_join(MasterProduct, by = c('MATERIAL' = 'MATERIAL'))
+
+```
+
+#Foi uma boa decisão comercializar queijo em 2020? Quais marcas de queijo são as mais importantes?
+```{r Resposta 1}
+#------------------ MANIPULAÇÕES PARA RESPOSTA 1 ------------------#
+
+
+#################### #################### #################### ####################
+#CONTABILIZAÇÃO DAS TRANSAÇÕES POR PRODUTO - TOTAL
+Quant_Trans_Product <- AllDates %>% 
+  filter(PERIOD < "202101") %>% 
+  group_by(CATEGORY) %>% 
+    summarise(QUANT = n())
+
+Quant_Trans_Product <- mutate(Quant_Trans_Product, RATIO = Quant_Trans_Product$QUANT/sum(Quant_Trans_Product$QUANT))
+Quant_Trans_Product <- mutate(Quant_Trans_Product, PERCENT = format(round(RATIO*100, 2)))
+
+
+
+#################### #################### #################### ####################
+#GRÁFICO DE PIZZA - MARGEM DE VENDAS POR PRODUTO
+
+graf_trans_product <- ggplot(Quant_Trans_Product, aes(x ="", y=RATIO, fill=CATEGORY)) + geom_bar(width = 1, stat = "identity") + 
+  coord_polar("y", start = 0, direction = -1) +
+  theme(
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(),
+          panel.border = element_blank(),
+          panel.grid=element_blank(),
+          axis.ticks = element_blank(),
+          panel.background = element_blank(),
+          axis.text.x=element_blank(),
+          legend.title = element_blank()) + 
+  geom_text(data = Quant_Trans_Product, aes(x ="", y=RATIO, label = PERCENT),
+            position = position_stack(vjust = 0.5))+
+  labs(title = "NUMBER OF TRANSACTIONS")
+
+graf_trans_product
+
+
+#################### #################### #################### ####################
+#ADEQUAÇÃO DA VARIAVEL "KG"
+AllDates$KG <- as.numeric(AllDates$KG)
+
+
+#################### #################### #################### ####################
+#SEPARAÇÃO DE INFORMAÇÕES SOBRE O TIPO DE PRODUTO
+    #CHESSE
+          chesse <- filter(AllDates, CATEGORY == "CHEESE")
+              sum(chesse$KG)
+              chesse %>% 
+                group_by(PERIOD) %>% 
+                  summarise(n())
+              
+             
+                che2020 <- filter(chesse, PERIOD < "202101")
+                  sum(che2020$KG)
+                  
+                che2021 <- filter(chesse, PERIOD >= "202101")
+                  sum(che2021$KG)
+
+    #DESSERTS         
+            desserts <- filter(AllDates, CATEGORY == "DESSERTS")
+                sum(desserts$KG)
+                
+                desserts2020 <- filter(desserts, PERIOD < "202101")
+                  sum(desserts2020$KG)
+                  
+                desserts2021 <- filter(desserts, PERIOD >= "202101")
+                  sum(desserts2021$KG)
+                  
+    #DRESSINGS
+            dressings <- filter(AllDates, CATEGORY == "DRESSINGS")
+                sum(dressings$KG)
+                
+                dressings2020 <- filter(dressings, PERIOD < "202101")
+                  sum(dressings2020$KG)
+                  
+                dressings2021 <- filter(dressings, PERIOD >= "202101")
+                  sum(dressings2021$KG)                
+            
+    #DRESSINGS
+            ingredients <- filter(AllDates, CATEGORY == "INGREDIENTS")
+                sum(ingredients$KG)
+                
+                ingredients2020 <- filter(ingredients, PERIOD < "202101")
+                  sum(ingredients2020$KG)
+                  
+                ingredients2021 <- filter(ingredients, PERIOD >= "202101")
+                  sum(ingredients2021$KG)                 
+                
+                
+#################### #################### #################### ####################
+#JUNÇÃO DE INFORMAÇÕES SOBRE A QUANTIDADE POR ANO 
+QUANT_YEAR <- data.frame(DESCRIPTION = c("CHESSE", "DESSERTS", "DRESSINGS", "INGREDIENTS"),
+                                  YEAR = c("2020", "2020", "2020", "2020", "2021", "2021", "2021", "2021"),
+                                  QUANT = c(sum(che2020$KG), sum(desserts2020$KG), sum(dressings2020$KG), sum(ingredients2020$KG), sum(che2021$KG), sum(desserts2021$KG), sum(dressings2021$KG), sum(ingredients2021$KG))
+                                 )
+                  
+
+#################### #################### #################### ####################
+#GRÁFICO DE BARRA - MARGEM DE VENDAS POR PRODUTO
+options(scipen = 999) #retirar a conotação científica dos gráficos
+                  
+                  
+graf_quant_year <- ggplot(QUANT_YEAR, aes(x=DESCRIPTION, y=QUANT)) +
+  geom_bar(aes(fill=YEAR), position = "dodge", stat="identity") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "AMOUNT PER YEAR")
+graf_quant_year
+
+
+#################### #################### #################### ####################
+#INFORMAÇÕES SOBRE A MARCA DE QUEIJO EM 2020
+Brand_Chesse2020 <- che2020 %>% 
+                  group_by(BRAND) %>% 
+                    summarise(QUANT = n())
+
+Brand_Chesse2020 <- mutate(Brand_Chesse2020, RATIO = Brand_Chesse2020$QUANT/sum(Brand_Chesse2020$QUANT))
+Brand_Chesse2020 <- mutate(Brand_Chesse2020, PERCENT = format(round(RATIO*100, 2)))
+str(Brand_Chesse2020)
+
+#################### #################### #################### ####################
+#GRÁFICO DE PIZZA - MARGEM DE VENDAS POR MARCA
+
+graf_brand_chesse2020 <- ggplot(data=Brand_Chesse2020, aes(x ="", y=RATIO, fill=BRAND))+ 
+  geom_bar(width = 1, stat = "identity") + 
+  coord_polar("y", start = 0, direction = -1) +
+  theme(
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(),
+          panel.border = element_blank(),
+          panel.grid=element_blank(),
+          axis.ticks = element_blank(),
+          panel.background = element_blank(),
+          axis.text.x=element_blank(),
+          legend.title = element_blank()) + 
+  geom_text(data = Brand_Chesse2020, aes(x ="", y=RATIO, label = PERCENT),
+            position = position_stack(vjust = 0.5))+
+  labs(title = "SALES MARGIN BY BRAND")
+
+graf_brand_chesse2020
+
+  
+```
+
+#Qual canal / planta é crítico para a empresa? Sua importância depende da marca? 
+```{r Resposta 2}
+#VERIFICAÇÃO DO CANAL
+AllDates %>% 
+  group_by(CHANNEL) %>% 
+  summarise(n())
+
+
+#################### #################### #################### ####################
+#DIVISÃO PELA PLANTA
+Plants <- AllDates %>% 
+            group_by(PLANT) %>% 
+              summarise(QUANT = n())
+
+
+#################### #################### #################### ####################
+#GRÁFICO DE BARRA - MARGEM DE VENDAS POR PRODUTO
+graf_quant_plants <- ggplot(Plants, aes(x=PLANT, y=QUANT, fill=PLANT)) +
+  geom_bar(position = "dodge", stat="identity") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "PLANTS")
+graf_quant_plants
+
+
+#################### #################### #################### ####################
+#PLANTA 5875 POR MARCAS
+plant5875 <- filter(AllDates, PLANT == "5875") 
+
+plant5875_brand <-  plant5875 %>% 
+                        group_by(BRAND) %>% 
+                            summarise(QUANT = n())
+
+plant5875_brand <- mutate(plant5875_brand, RATIO = plant5875_brand$QUANT/sum(plant5875_brand$QUANT))
+plant5875_brand <- mutate(plant5875_brand, PERCENT = format(round(RATIO*100, 2)))
+
+
+#################### #################### #################### ####################
+#GRÁFICO DE PIZZA - PLANTA 5875 POR MARCA
+
+graf_plant5875_brand <- ggplot(data=plant5875_brand, aes(x ="", y=RATIO, fill=BRAND))+ 
+  geom_bar(width = 1, stat = "identity") + 
+  coord_polar("y", start = 0, direction = -1) +
+  theme(
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(),
+          panel.border = element_blank(),
+          panel.grid=element_blank(),
+          axis.ticks = element_blank(),
+          panel.background = element_blank(),
+          axis.text.x=element_blank(),
+          legend.title = element_blank()) + 
+  geom_text(data = plant5875_brand, aes(x ="", y=RATIO, label = PERCENT),
+            position = position_stack(vjust = 0.5))+
+  labs(title = "PLANT 5875 BY BRAND")
+
+graf_plant5875_brand
+
+
+#################### #################### #################### ####################
+#PLANTA 5909 POR MARCAS
+plant5909 <- filter(AllDates, PLANT == "5909") 
+
+plant5909_brand <-  plant5909 %>% 
+                        group_by(BRAND) %>% 
+                            summarise(QUANT = n())
+
+plant5909_brand <- mutate(plant5909_brand, RATIO = plant5909_brand$QUANT/sum(plant5909_brand$QUANT))
+plant5909_brand <- mutate(plant5909_brand, PERCENT = format(round(RATIO*100, 2)))
+
+
+#################### #################### #################### ####################
+#GRÁFICO DE PIZZA - PLANTA 5875 POR MARCA
+
+graf_plant5909_brand <- ggplot(data=plant5909_brand, aes(x ="", y=RATIO, fill=BRAND))+ 
+  geom_bar(width = 1, stat = "identity") + 
+  coord_polar("y", start = 0, direction = -1) +
+  theme(
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(),
+          panel.border = element_blank(),
+          panel.grid=element_blank(),
+          axis.ticks = element_blank(),
+          panel.background = element_blank(),
+          axis.text.x=element_blank(),
+          legend.title = element_blank()) + 
+  geom_text(data = plant5909_brand, aes(x ="", y=RATIO, label = PERCENT),
+            position = position_stack(vjust = 0.5))+
+  labs(title = "PLANT 5909 BY BRAND")
+
+graf_plant5909_brand
+
+
+```
+```{r}
+#################### #################### #################### ####################
+#VERIFICAÇÃO DA QUANTIDADE VENDIDA POR UNIDADE
+boxplot(chesse$WEIGHT_PER_UNIT)
+summary(chesse$WEIGHT_PER_UNIT)
+
+str(chesseTest)
+
+
+#################### #################### #################### ####################
+#AJUSTE DE DATASET PARA ANÁLISE DE VENDAS FUTURAS
+
+chesseTeste <- chesse
+
+
+chesseTeste$UNIT_OF_WT <- NULL
+chesseTeste$MATERIAL <- NULL
+chesseTeste$SOLD_TO <- NULL
+chesseTeste$CHANNEL <- NULL
+chesseTeste$BRAND <- NULL
+chesseTeste$PLANT <- NULL
+chesseTeste$CODE_TO_GROUP <- NULL
+chesseTeste$SUB_BRAND <- NULL
+chesseTeste$TYPE <- NULL
+chesseTeste$CATEGORY <- NULL
+
+
+che202001 <- filter(chesseTeste, PERIOD == "202001")
+che202002 <- filter(chesseTeste, PERIOD == "202002")
+che202003 <- filter(chesseTeste, PERIOD == "202003")
+che202004 <- filter(chesseTeste, PERIOD == "202004")
+che202005 <- filter(chesseTeste, PERIOD == "202005")
+che202006 <- filter(chesseTeste, PERIOD == "202006")
+che202007 <- filter(chesseTeste, PERIOD == "202007")
+che202008 <- filter(chesseTeste, PERIOD == "202008")
+che202009 <- filter(chesseTeste, PERIOD == "202009")
+che202010 <- filter(chesseTeste, PERIOD == "202010")
+che202011 <- filter(chesseTeste, PERIOD == "202011")
+che202012 <- filter(chesseTeste, PERIOD == "202012")
+che202101 <- filter(chesseTeste, PERIOD == "202101")
+che202102 <- filter(chesseTeste, PERIOD == "202102")
+che202103 <- filter(chesseTeste, PERIOD == "202103")
+che202104 <- filter(chesseTeste, PERIOD == "202104")
+che202105 <- filter(chesseTeste, PERIOD == "202105")
+che202106 <- filter(chesseTeste, PERIOD == "202106")
+
+
+
+QUANT_CHESSE_MON <- data.frame(MONTHS = c("01012020", "01022020", "01032020", "01042020", "01052020", "01062020", "01072020", "01082020", "01092020", "01102020", "01112020", "01122020", "01012021", "01022021", "01032021", "01042021", "01052021", "01062021"),
+                                QUANT = c(sum(che202001$KG), sum(che202002$KG), sum(che202003$KG), sum(che202004$KG), sum(che202005$KG), sum(che202006$KG), sum(che202007$KG), sum(che202008$KG), sum(che202009$KG), sum(che202010$KG), sum(che202011$KG), sum(che202012$KG), c(sum(che202101$KG), sum(che202102$KG), sum(che202103$KG), sum(che202104$KG), sum(che202105$KG), sum(che202106$KG))))
+
+MAquant_chesse_mon <- stats::filter(QUANT_CHESSE_MON$QUANT, filter=rep(1/2, 2), method="convolution", sides=1, circular=F)
+MAquant_chesse_mon
+
+QUANT_CHESSE_MON <- mutate(QUANT_CHESSE_MON, MA = MAquant_chesse_mon)
+QUANT_CHESSE_MON[1,3] <- 262.2
+
+QUANT_CHESSE_MON$MONTHS <- as.Date(QUANT_CHESSE_MON$MONTHS, "%d%m%Y")
+
+
+
+#################### #################### #################### ####################
+#GRÁFICO DE LINHA - QUANTIDADE DE QUEIJO E MM
+graf.teste <-  ggplot(QUANT_CHESSE_MON, aes(MONTHS)) + 
+  scale_y_continuous(labels = comma)  +
+  geom_line(aes(y = QUANT, colour = "quant")) +
+  geom_line(aes(y = MA, colour = "ma"))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+
+
+
+graf.teste
+
+```
+
+ 
+
